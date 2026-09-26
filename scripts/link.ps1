@@ -130,7 +130,13 @@ foreach ($profile in Get-ChildItem (Join-Path $repo 'profiles') -Directory) {
 
   foreach ($file in 'SOUL.md', 'config.yaml') {
     $src = Join-Path $profile.FullName $file
-    if (Test-Path $src) { Link-Item $src (Join-Path $dest $file) $file }
+    $live = Join-Path $dest $file
+    # New profile: with -Adopt, the file Hermes generated becomes the repo's starting copy.
+    if (-not (Test-Path $src) -and $Adopt -and (Test-Path $live -PathType Leaf) -and -not (Get-Item $live -Force).LinkType) {
+      if ($DryRun) { Write-Host "  adopt    $file (new in repo)"; continue }
+      New-Item -ItemType File -Path $src | Out-Null
+    }
+    if (Test-Path $src) { Link-Item $src $live $file }
   }
 
   $ownSkills = Get-Skills (Join-Path $profile.FullName 'skills')

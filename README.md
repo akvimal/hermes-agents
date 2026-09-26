@@ -74,7 +74,7 @@ A running gateway only picks up changes after a restart: `hermes -p me gateway r
 
 ## MCP servers
 
-`mcp/pharmacy-mcp` is a NestJS [MCP](https://modelcontextprotocol.io) server exposing pharmacy inventory tools over Streamable HTTP and stdio. See [its README](mcp/pharmacy-mcp/README.md) for tools, configuration and tests.
+`mcp/pharmacy-mcp` is a NestJS [MCP](https://modelcontextprotocol.io) server giving agents read-only access to the back office database (EOD, expiry, low stock, GST) over Streamable HTTP and stdio, through a dedicated `agent` schema in `mcp/pharmacy-mcp/sql/`. See [its README](mcp/pharmacy-mcp/README.md) for tools, configuration and tests.
 
 ```bash
 cd mcp/pharmacy-mcp
@@ -85,14 +85,15 @@ npm run start:dev        # http://127.0.0.1:3100/mcp
 
 ## Deploying to the VPS
 
+First-time setup (install Hermes, create profiles, link this repo, start gateways and the MCP server) is in [docs/VPS_SETUP.md](docs/VPS_SETUP.md). After that:
+
 ```bash
-git clone https://github.com/akvimal/hermes-agents.git
-scripts/deploy.sh                          # pull, npm ci, test, build, restart gateways
-PROFILES="me pharma-ops" scripts/deploy.sh # only these profiles
-MCP_SERVICE=pharmacy-mcp scripts/deploy.sh # also restart a systemd unit
+scripts/deploy.sh                          # pull, link new files, rebuild pharmacy-mcp (Docker), restart gateways
+PROFILES="me pharma-ops" scripts/deploy.sh # only these gateways
+MCP_MODE=host scripts/deploy.sh            # build the MCP with the host's Node instead of Docker
 ```
 
-On Linux, link the repo files into the Hermes profile folders with `ln -s` (the equivalent of `link.ps1`, not scripted yet). Run `hermes` under the same user that owns the profiles.
+`scripts/link.sh` is the Linux equivalent of `link.ps1`. Run `hermes` under the same user that owns the profiles.
 
 ## Secrets
 

@@ -1,0 +1,28 @@
+# Runs pharmacy-mcp next to the back office Postgres container.
+#
+#   DATABASE_URL=postgresql://agent_ro:<secret>@<postgres-container>:5432/<db> \
+#   DB_NETWORK=<network the postgres container is on> \
+#   MCP_AUTH_TOKEN=<token> \
+#   docker compose up -d --build
+#
+# Find the network with:  docker inspect <postgres-container> --format '{{json .NetworkSettings.Networks}}'
+# The MCP port is published on the host loopback only; Postgres needs no published port.
+services:
+  pharmacy-mcp:
+    build: .
+    image: pharmacy-mcp:local
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL (agent_ro role)}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?set MCP_AUTH_TOKEN}
+      HOST: 0.0.0.0
+      PORT: "3100"
+    ports:
+      - "127.0.0.1:${PORT:-3100}:3100"
+    networks:
+      - db
+
+networks:
+  db:
+    external: true
+    name: ${DB_NETWORK:?set DB_NETWORK to the Postgres container's docker network}
