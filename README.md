@@ -7,7 +7,7 @@ Source files for [Hermes Agent](https://github.com/NousResearch/hermes-agent) pr
 ```
 hermes-agents/
 ├── profiles/               one folder per Hermes profile
-│   ├── me/                 SOUL.md, config.yaml, skills/{email-brief,email-actions}
+│   ├── me/                 SOUL.md, config.yaml, skills/productivity/{email-brief,email-actions}
 │   ├── pharma-ops/
 │   └── pharma-growth/
 ├── shared-skills/          skills reused across profiles
@@ -28,8 +28,8 @@ Nothing is copied. `scripts/link.ps1` makes the Hermes profile point at files in
 | Repo path | Linked to | Type |
 | --- | --- | --- |
 | `profiles/<p>/SOUL.md`, `config.yaml` | `<HERMES_HOME>/profiles/<p>/` | file symlink |
-| `profiles/<p>/skills/<skill>/` | `<HERMES_HOME>/profiles/<p>/skills/<skill>/` | directory junction |
-| `shared-skills/<skill>/` | every profile's `skills/<skill>/` | directory junction |
+| `profiles/<p>/skills/[<category>/]<skill>/` | same path under `<HERMES_HOME>/profiles/<p>/skills/` | directory junction |
+| `shared-skills/[<category>/]<skill>/` | same path in every profile's `skills/` | directory junction |
 
 `<HERMES_HOME>` defaults to `%LOCALAPPDATA%\hermes`. A profile's own skill wins over a shared skill of the same name. Everything else in a Hermes profile (`.env`, `auth.json`, `sessions/`, `state.db`, `memories/`, `logs/`) stays local and is git-ignored.
 
@@ -58,7 +58,7 @@ Stop the profile's gateway first (`hermes -p <profile> gateway stop`), because H
 ## Adding things
 
 - **New profile:** create it in Hermes, add `profiles/<name>/` with `SOUL.md` and `config.yaml`, run `link.ps1`.
-- **New skill:** add `profiles/<p>/skills/<skill>/SKILL.md` (or `shared-skills/<skill>/` for all profiles), run `link.ps1`.
+- **New skill:** add `profiles/<p>/skills/<category>/<skill>/SKILL.md` (or under `shared-skills/` for all profiles), run `link.ps1`. Any folder holding a `SKILL.md` counts as a skill; keep the same category folder Hermes uses (e.g. `productivity`).
 - **New cron job:** document it in `cron/jobs.md`, then create it with `hermes -p <profile> cron create`. Hermes stores jobs in its own state, so the file is the record you recreate them from.
 
 ## Testing a change

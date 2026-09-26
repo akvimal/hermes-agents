@@ -6,9 +6,9 @@
   For every profiles/<name>/ in the repo whose Hermes profile already exists
   (create it first with `hermes profile create <name>`), links:
     SOUL.md, config.yaml   -> file symlinks   (needs Developer Mode or admin)
-    skills/<skill>/        -> directory junctions
-  and links every shared-skills/<skill>/ into each profile's skills/ folder
-  (a profile's own skill of the same name wins).
+    skills/[<category>/]<skill>/  -> directory junctions (any folder holding SKILL.md)
+  and links every shared-skills/[<category>/]<skill>/ into each profile's skills/
+  folder at the same relative path (a profile's own skill at that path wins).
 
   Only these files are linked. Runtime state (auth, sessions, memories, logs,
   caches) stays inside the Hermes profile and out of the repo.
@@ -109,7 +109,17 @@ function Link-Item {
 
 if (-not (Test-Path (Join-Path $HermesHome 'profiles'))) { throw "No profiles folder under $HermesHome (set -HermesHome or HERMES_HOME)" }
 
-$sharedSkills = @(Get-ChildItem (Join-Path $repo 'shared-skills') -Directory -ErrorAction SilentlyContinue)
+# A skill is any folder containing SKILL.md, at any depth: <skill>/ or <category>/<skill>/.
+# Rel is the path below the root and is reused as the path inside the Hermes skills folder.
+function Get-Skills([string]$Root) {
+  if (-not (Test-Path $Root)) { return @() }
+  $rootFull = (Resolve-Path $Root).Path.TrimEnd('\')
+  @(Get-ChildItem $Root -Recurse -File -Filter SKILL.md -Force | ForEach-Object {
+      [pscustomobject]@{ Rel = $_.Directory.FullName.Substring($rootFull.Length + 1); FullName = $_.Directory.FullName }
+    })
+}
+
+$sharedSkills = Get-Skills (Join-Path $repo 'shared-skills')
 
 foreach ($profile in Get-ChildItem (Join-Path $repo 'profiles') -Directory) {
   $dest = Join-Path $HermesHome "profiles\$($profile.Name)"
@@ -123,13 +133,14 @@ foreach ($profile in Get-ChildItem (Join-Path $repo 'profiles') -Directory) {
     if (Test-Path $src) { Link-Item $src (Join-Path $dest $file) $file }
   }
 
-  $ownSkills = @(Get-ChildItem (Join-Path $profile.FullName 'skills') -Directory -ErrorAction SilentlyContinue)
-  $ownNames = $ownSkills.Name
-  $skills = $ownSkills + @($sharedSkills | Where-Object { $_.Name -notin $ownNames })
-  if ($skills) {
-    $skillsDir = Join-Path $dest 'skills'
-    if (-not (Test-Path $skillsDir) -and -not $DryRun) { New-Item -ItemType Directory -Path $skillsDir | Out-Null }
-    foreach ($skill in $skills) { Link-Item $skill.FullName (Join-Path $skillsDir $skill.Name) "skills/$($skill.Name)" }
+  $ownSkills = Get-Skills (Join-Path $profile.FullName 'skills')
+  $ownRels = @($ownSkills | ForEach-Object Rel)
+  $skills = @($ownSkills) + @($sharedSkills | Where-Object { $_.Rel -notin $ownRels })
+  $skillsDir = Join-Path $dest 'skills'
+  foreach ($skill in $skills) {
+    $target = Join-Path $skillsDir $skill.Rel
+    if (-not $DryRun) { New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null }
+    Link-Item $skill.FullName $target ("skills/" + ($skill.Rel -replace '\\', '/'))
   }
 }
 
