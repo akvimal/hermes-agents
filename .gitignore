@@ -1,0 +1,9 @@
+.env
+**/.env
+**/auth.json
+**/*token*.json
+**/client_secret*.json
+**/sessions/
+**/state.db*
+**/logs/
+**/memories/
