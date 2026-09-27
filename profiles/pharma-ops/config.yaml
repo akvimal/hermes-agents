@@ -1,0 +1,17 @@
+model:
+  default: openai/gpt-6-luna
+  provider: openrouter
+  base_url: https://openrouter.ai/api/v1
+  api_mode: chat_completions
+skills:
+  write_approval: true
+command_allowlist:
+  - script execution via -e/-c flag
+  - execute_code
+mcp_servers:
+  pharmacy:
+    url: http://127.0.0.1:3100/mcp
+    headers:
+      Authorization: "Bearer ${MCP_PHARMACY_API_KEY}"
+    enabled: true
+_config_version: 33
