@@ -1,16 +1,23 @@
-# Runs pharmacy-mcp next to the back office Postgres container.
+# Runs pharmacy-mcp next to the back office Postgres container, reachable by any Hermes
+# container on `hermes-net` at http://pharmacy-mcp:3100/mcp.
+#
+#   docker network create hermes-net   # once, shared with the `hermes` container (see docs/VPS_SETUP.md)
 #
 #   DATABASE_URL=postgresql://agent_ro:<secret>@<postgres-container>:5432/<db> \
 #   DB_NETWORK=<network the postgres container is on> \
 #   MCP_AUTH_TOKEN=<token> \
 #   docker compose up -d --build
 #
-# Find the network with:  docker inspect <postgres-container> --format '{{json .NetworkSettings.Networks}}'
-# The MCP port is published on the host loopback only; Postgres needs no published port.
+# Find the Postgres network with:  docker inspect <postgres-container> --format '{{json .NetworkSettings.Networks}}'
+#
+# The host-loopback port publish below is for local curl/debugging only - it is NOT how the
+# `hermes` container reaches this service (a bridge-networked container's 127.0.0.1 is its own
+# loopback, not the host's). Container-to-container calls always go through `hermes-net` by name.
 services:
   pharmacy-mcp:
     build: .
     image: pharmacy-mcp:local
+    container_name: pharmacy-mcp
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL (agent_ro role)}
@@ -21,8 +28,12 @@ services:
       - "127.0.0.1:${PORT:-3100}:3100"
     networks:
       - db
+      - hermes-net
 
 networks:
   db:
     external: true
     name: ${DB_NETWORK:?set DB_NETWORK to the Postgres container's docker network}
+  hermes-net:
+    external: true
+    name: ${HERMES_NETWORK:-hermes-net}

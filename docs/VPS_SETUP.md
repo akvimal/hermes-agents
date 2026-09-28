@@ -46,12 +46,21 @@ the repo as the starting point; if the repo already has real content, the Hermes
 ```bash
 chown -R 10000:10000 /opt/hermes-agents
 
+docker network create hermes-net   # once - shared with pharmacy-mcp and any future MCP server
+
 docker run -d --name hermes --restart unless-stopped \
+  --network hermes-net \
   -v ~/.hermes:/opt/data \
   -v /opt/hermes-agents:/opt/hermes-agents \
   -p 8642:8642 \
   nousresearch/hermes-agent gateway run
 ```
+
+`--network hermes-net` replaces Docker's default bridge network, not `-p 8642:8642` — port publishing still
+works the same. This matters for step 7 (pharmacy-mcp): a container's `127.0.0.1` is its own loopback, not
+the host's, so reaching another container by `127.0.0.1:<port>` never works regardless of what that port
+publishes to on the host. Every MCP server this profile talks to needs to be on `hermes-net` too, addressed
+by its container name — see step 7.
 
 Two things that **must** both be true, or Hermes can't read/write the linked files:
 
@@ -154,15 +163,31 @@ docker exec hermes hermes -p me config set auxiliary.free_only true
 ## 7. The pharmacy MCP server
 
 Runs as its own separate container (`mcp/pharmacy-mcp`), independent of the `hermes` container. See
-`mcp/pharmacy-mcp/README.md` for the database role setup and `docker compose up -d --build`. Point a
-profile at it:
+`mcp/pharmacy-mcp/README.md` for the database role setup. Its `docker-compose.yml` auto-joins `hermes-net`
+(created in step 3) and gives the container a stable name, `pharmacy-mcp`:
 ```bash
-docker exec -it hermes hermes -p pharma-ops mcp add pharmacy --url http://127.0.0.1:3100/mcp --auth header
+cd mcp/pharmacy-mcp
+docker compose up -d --build
+```
+
+**Do not use `http://127.0.0.1:3100/mcp`** — verified this fails (`Connection failed`) even though the port
+is published on the host, because `hermes` and `pharmacy-mcp` are separate containers: `127.0.0.1` inside
+`hermes` is its own loopback, not the host's. Address it by its container name over the shared network
+instead — this is what `profiles/pharma-ops/config.yaml` already has committed:
+```yaml
+mcp_servers:
+  pharmacy:
+    url: http://pharmacy-mcp:3100/mcp
+```
+The interactive `hermes mcp add` wizard doesn't know about container-name addressing and will happily save
+a `127.0.0.1` URL that silently fails later — edit `config.yaml` directly instead (already done for
+`pharma-ops`), then add the token to the profile's `.env`:
+```bash
+docker exec hermes cat /opt/hermes-agents/mcp/pharmacy-mcp/.env | grep MCP_AUTH_TOKEN   # get the token
+echo "MCP_PHARMACY_API_KEY=<paste the token>" >> ~/.hermes/profiles/pharma-ops/.env
+docker restart hermes   # or wait for the ~30s auto-rescan
 docker exec hermes hermes -p pharma-ops mcp test pharmacy
 ```
-If the interactive prompt hangs on piped/scripted input, edit `config.yaml`'s `mcp_servers` block directly
-instead (see `profiles/pharma-ops/config.yaml` for the working example) and append
-`MCP_PHARMACY_API_KEY=<token>` to the profile's `.env`.
 
 ## 8. Cron jobs
 

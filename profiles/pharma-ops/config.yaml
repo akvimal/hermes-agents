@@ -14,7 +14,7 @@ command_allowlist:
 _config_version: 33
 mcp_servers:
   pharmacy:
-    url: http://127.0.0.1:3100/mcp
+    url: http://pharmacy-mcp:3100/mcp
     headers:
       Authorization: Bearer ${MCP_PHARMACY_API_KEY}
     enabled: true
