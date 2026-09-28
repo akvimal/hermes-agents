@@ -85,15 +85,15 @@ npm run start:dev        # http://127.0.0.1:3100/mcp
 
 ## Deploying to the VPS
 
-First-time setup (install Hermes, create profiles, link this repo, start gateways and the MCP server) is in [docs/VPS_SETUP.md](docs/VPS_SETUP.md). After that:
+First-time setup (the Docker deployment: install Hermes, create profiles, link this repo, start the gateway container and the MCP server) is in [docs/VPS_SETUP.md](docs/VPS_SETUP.md) — it also has the real gotchas hit getting this running (file paths, permissions, the multiplexed gateway model, Telegram, Google Workspace). After that:
 
 ```bash
-scripts/deploy.sh                          # pull, link new files, rebuild pharmacy-mcp (Docker), restart gateways
-PROFILES="me pharma-ops" scripts/deploy.sh # only these gateways
-MCP_MODE=host scripts/deploy.sh            # build the MCP with the host's Node instead of Docker
+scripts/deploy.sh                          # pull, link new files, rebuild pharmacy-mcp if it changed, reload gateways
+PROFILES="me pharma-ops" scripts/deploy.sh # only these profiles
+MCP_MODE=none scripts/deploy.sh            # skip the pharmacy-mcp rebuild check
 ```
 
-`scripts/link.sh` is the Linux equivalent of `link.ps1`. Run `hermes` under the same user that owns the profiles.
+`scripts/link.sh` is the Linux equivalent of `link.ps1`. `deploy.sh` assumes the persistent `hermes` container is already running (see docs/VPS_SETUP.md) — it reloads it, it never creates or recreates it.
 
 ## Secrets
 

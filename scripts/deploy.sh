@@ -1,62 +1,61 @@
 #!/usr/bin/env bash
-# Deploy on the VPS: pull, link new profile files, rebuild pharmacy-mcp, restart Hermes gateways.
+# Deploy an update on the VPS: pull, link new files, rebuild pharmacy-mcp if it
+# changed, reload each profile's gateway.
 #
-#   scripts/deploy.sh                          # pharmacy-mcp in Docker, restart every profile's gateway
-#   PROFILES="me pharma-ops" scripts/deploy.sh # restart only these gateways
-#   MCP_MODE=host scripts/deploy.sh            # build with the host's Node instead of Docker
-#   MCP_MODE=none scripts/deploy.sh            # skip pharmacy-mcp
-#   MCP_SERVICE=pharmacy-mcp scripts/deploy.sh # host mode: also restart this systemd --user unit
+# Assumes the Docker deployment from docs/VPS_SETUP.md: a persistent container
+# named `hermes` (image nousresearch/hermes-agent) with this repo bind-mounted
+# read-write at the SAME absolute path inside and outside the container.
 #
-# Docker mode reads mcp/pharmacy-mcp/.env (DATABASE_URL, DB_NETWORK, MCP_AUTH_TOKEN); see its README.
-# Host mode needs Node 24 (the version the lockfile was created with).
+#   scripts/deploy.sh                          # all profiles under profiles/
+#   PROFILES="me pharma-ops" scripts/deploy.sh # only these profiles
+#   MCP_MODE=none scripts/deploy.sh            # skip the pharmacy-mcp rebuild check
+#
+# This script only reloads an already-running `hermes` container. It never
+# recreates it - if you need to change its mounts, env vars, or UID mapping,
+# that's a manual `docker stop/rm` + `docker run` (see docs/VPS_SETUP.md).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
-MCP_MODE="${MCP_MODE:-docker}"
 
+if ! docker inspect hermes >/dev/null 2>&1; then
+  echo "No container named 'hermes' found. Run the setup in docs/VPS_SETUP.md first." >&2
+  exit 1
+fi
+
+before="$(git rev-parse HEAD)"
 echo "==> git pull"
 git pull --ff-only
+after="$(git rev-parse HEAD)"
 
-echo "==> link profile files into Hermes"
-scripts/link.sh   # links new skills/files; reports conflicts instead of overwriting
+echo "==> link new profile/skill files into Hermes"
+"$REPO/scripts/link.sh" --adopt
 
-case "$MCP_MODE" in
-  docker)
-    echo "==> pharmacy-mcp: docker compose up --build"
+if [[ "${MCP_MODE:-}" != "none" ]] && [[ -d mcp/pharmacy-mcp ]]; then
+  if git diff --name-only "$before" "$after" -- mcp/pharmacy-mcp | grep -q .; then
+    echo "==> pharmacy-mcp changed - rebuilding"
     (cd mcp/pharmacy-mcp && docker compose up -d --build)
-    ;;
-  host)
-    echo "==> pharmacy-mcp: install + test + build"
-    (cd mcp/pharmacy-mcp && npm ci && npm test && npm run build)
-    if [[ -n "${MCP_SERVICE:-}" ]]; then
-      echo "==> restarting $MCP_SERVICE"
-      systemctl --user restart "$MCP_SERVICE"
-    fi
-    ;;
-  none) ;;
-  *) echo "unknown MCP_MODE: $MCP_MODE (docker|host|none)" >&2; exit 2 ;;
-esac
+  else
+    echo "==> pharmacy-mcp unchanged - skipping rebuild"
+  fi
+fi
 
 if [[ -z "${PROFILES:-}" ]]; then
   PROFILES="$(find profiles -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | tr '\n' ' ')"
 fi
 
-echo "==> restarting gateways: $PROFILES"
-failed=()
+echo "==> reloading profiles: $PROFILES"
 for p in $PROFILES; do
-  if hermes -p "$p" gateway restart; then
-    echo "    $p: restarted"
+  if docker exec hermes hermes -p "$p" config check >/dev/null 2>&1; then
+    docker exec hermes hermes -p "$p" gateway restart \
+      || echo "    $p: restart reported an issue - check 'docker exec hermes hermes -p $p gateway status'"
   else
-    echo "    $p: FAILED" >&2
-    failed+=("$p")
+    echo "    $p: no Hermes profile yet (run: docker exec hermes hermes profile create $p) - skipping"
   fi
 done
 
-if ((${#failed[@]})); then
-  echo "Gateway restart failed for: ${failed[*]}" >&2
-  exit 1
-fi
-
 echo "==> done"
-hermes gateway list
+docker exec hermes hermes gateway status
+echo
+echo "Reminder: config/SOUL.md changes apply on the next new session automatically."
+echo "For a change to take effect mid-conversation, send /new in the chat, or wait for the restart above."
