@@ -15,25 +15,50 @@ hermes-agents/
 │   └── pharmacy-mcp/       NestJS MCP server (HTTP + stdio), with its own tests
 ├── cron/jobs.md            each job's schedule, prompt and skill
 ├── scripts/
-│   ├── link.ps1            links the repo into the Hermes profile folders (Windows)
-│   └── deploy.sh           git pull, rebuild MCP, restart gateways (VPS)
+│   ├── link.ps1            links the repo into the Hermes profile folders (Windows, native install)
+│   ├── link.sh             same, for Linux / Docker
+│   └── deploy.sh           git pull, link new files, rebuild MCP, reload gateways (Docker)
 ├── .env.example            environment variables, without values
 └── .gitignore
 ```
 
 ## How the repo connects to Hermes
 
-Nothing is copied. `scripts/link.ps1` makes the Hermes profile point at files in this repo, so an edit on either side is the same file.
+Nothing is copied. The Hermes profile is made to point at files in this repo, so an edit on either side is the same file — via symlinks (`scripts/link.ps1` natively, `scripts/link.sh` in Docker) or, in Docker's case, a bind mount plus those same symlinks created inside the container.
 
 | Repo path | Linked to | Type |
 | --- | --- | --- |
 | `profiles/<p>/SOUL.md`, `config.yaml` | `<HERMES_HOME>/profiles/<p>/` | file symlink |
-| `profiles/<p>/skills/[<category>/]<skill>/` | same path under `<HERMES_HOME>/profiles/<p>/skills/` | directory junction |
-| `shared-skills/[<category>/]<skill>/` | same path in every profile's `skills/` | directory junction |
+| `profiles/<p>/skills/[<category>/]<skill>/` | same path under `<HERMES_HOME>/profiles/<p>/skills/` | directory junction (native) / symlink (Docker) |
+| `shared-skills/[<category>/]<skill>/` | same path in every profile's `skills/` | directory junction (native) / symlink (Docker) |
 
-`<HERMES_HOME>` defaults to `%LOCALAPPDATA%\hermes`. A profile's own skill wins over a shared skill of the same name. Everything else in a Hermes profile (`.env`, `auth.json`, `sessions/`, `state.db`, `memories/`, `logs/`) stays local and is git-ignored.
+Native default: `<HERMES_HOME>` is `%LOCALAPPDATA%\hermes`. Docker: `<HERMES_HOME>` is whatever host directory
+is bind-mounted to `/opt/data`. A profile's own skill wins over a shared skill of the same name. Everything
+else in a Hermes profile (`.env`, `auth.json`, `sessions/`, `state.db`, `memories/`, `logs/`) stays local and
+is git-ignored.
 
-## Setup (Windows)
+## Setup
+
+Two ways to run Hermes against this repo, locally or on the VPS. **Docker is recommended** — it's what
+runs in production, it's simpler on Windows than the native install (no Developer Mode, no symlink
+permission workarounds), and the exact same steps work identically on the VPS.
+
+### Docker (recommended)
+
+Full steps, including every gotcha actually hit setting this up, are in
+[docs/VPS_SETUP.md](docs/VPS_SETUP.md) — it reads the same for a laptop as for a VPS, with two
+Windows-only simplifications:
+
+- **Skip the `chown -R 10000:10000` step.** Docker Desktop's file-sharing layer doesn't enforce Unix
+  ownership on Windows bind mounts, so the container's user can already read and write the repo — verified
+  directly (a throwaway container, non-root, wrote into a bind-mounted file with no ownership fix needed).
+- **The repo can live anywhere** (e.g. `D:\workspace\hermes-agents`) — Windows has no equivalent of Linux's
+  `/root` blocking traversal, which is the only reason the VPS docs are strict about the mount path.
+
+Everything else — creating profiles, linking the repo, starting the container, Telegram/Google Workspace
+setup — is identical. Run the same `docker run` / `docker exec` commands from a Windows terminal.
+
+### Native (no Docker)
 
 Prerequisites: Hermes installed, Windows Developer Mode on (for file symlinks), Node 20+ for the MCP server.
 
@@ -54,6 +79,9 @@ To bring an existing profile's files into the repo, run with `-Adopt`:
 - Repo file has content: the Hermes copy is backed up as `<name>.bak-<timestamp>`, then linked.
 
 Stop the profile's gateway first (`hermes -p <profile> gateway stop`), because Hermes may rewrite `config.yaml` while it runs.
+
+This is what `me` and `pharma-ops` originally ran on before moving to the VPS — kept here for reference and
+because it's still a valid option if you'd rather not use Docker locally.
 
 ## Adding things
 
@@ -85,7 +113,9 @@ npm run start:dev        # http://127.0.0.1:3100/mcp
 
 ## Deploying to the VPS
 
-First-time setup (the Docker deployment: install Hermes, create profiles, link this repo, start the gateway container and the MCP server) is in [docs/VPS_SETUP.md](docs/VPS_SETUP.md) — it also has the real gotchas hit getting this running (file paths, permissions, the multiplexed gateway model, Telegram, Google Workspace). After that:
+Same Docker steps as the local setup above, plus the Linux-specific gotchas (file paths, permissions, the
+multiplexed gateway model, Telegram, Google Workspace) — see [docs/VPS_SETUP.md](docs/VPS_SETUP.md). After
+first-time setup:
 
 ```bash
 scripts/deploy.sh                          # pull, link new files, rebuild pharmacy-mcp if it changed, reload gateways
