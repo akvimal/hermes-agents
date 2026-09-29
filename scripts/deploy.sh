@@ -28,6 +28,14 @@ echo "==> git pull"
 git pull --ff-only
 after="$(git rev-parse HEAD)"
 
+echo "==> re-chown repo files git pull just touched"
+# git pull runs as root, which resets ownership on every file it writes/updates back to root:root -
+# undoing the one-time `chown -R 10000:10000 /opt/hermes-agents` from setup for exactly the files
+# that just changed. Without this, `hermes -p <profile> model`/`setup`/etc. fail with
+# PermissionError writing config.yaml the next time you deploy an update. Re-chown the whole tree
+# every run - cheap, and catches new files too, not just changed ones.
+chown -R 10000:10000 "$REPO" 2>/dev/null || echo "    (chown failed/skipped - not root, or not on Linux; fix manually if a later step hits PermissionError)"
+
 echo "==> link new profile/skill files into Hermes"
 "$REPO/scripts/link.sh" --adopt
 

@@ -71,6 +71,11 @@ Two things that **must** both be true, or Hermes can't read/write the linked fil
   auto-fixes ownership on `/opt/data`, but has no idea about this extra mount, so files here (cloned/created
   as root) stay root-owned unless you chown them — a mismatch shows up as `PermissionError`, not
   `Read-only file system`, so the two errors tell you which piece is still wrong.
+  **This isn't one-and-done** — every `git pull` runs as root and resets ownership on whatever files it
+  touches, so the exact same `PermissionError` comes back the next time you deploy an update and then run
+  `hermes -p <profile> model`/`setup`/anything else that writes `config.yaml`. `scripts/deploy.sh` re-chowns
+  the whole repo after every pull for this reason — if you ever update by hand instead, re-run the `chown`
+  below yourself afterward.
 
 ```bash
 docker ps --filter name=hermes                                    # confirm it's up
