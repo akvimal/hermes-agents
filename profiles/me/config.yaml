@@ -1,15 +1,12 @@
-model:
-  default: upstage/solar-pro4:free
-  provider: nous
-  base_url: https://inference-api.nousresearch.com/v1
 skills:
-  write_approval: true
+  write_approval: false
 command_allowlist:
-  - script execution via -e/-c flag
   - execute_code
 agent:
-  max_turns: 150
+  max_turns:
+  reasoning_effort: minimal
 _config_version: 46
+<<<<<<< Updated upstream
 platform_toolsets:
   cli:
     - clarify
@@ -56,3 +53,12 @@ known_builtin_toolsets:
     - web
     - x_search
     - yuanbao
+=======
+model:
+  default: openai/gpt-6-luna-pro
+  provider: openrouter
+  base_url: https://openrouter.ai/api/v1
+  api_mode: chat_completions
+approvals:
+  destructive_slash_confirm: false
+>>>>>>> Stashed changes

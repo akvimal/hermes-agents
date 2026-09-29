@@ -1,9 +1,11 @@
 model:
-  default: upstage/solar-pro4:free
-  provider: nous
-  base_url: https://inference-api.nousresearch.com/v1
+  default: openai/gpt-6-luna-pro
+  provider: openrouter
+  base_url: https://openrouter.ai/api/v1
+  api_mode: chat_completions
 agent:
   max_turns: 150
+  reasoning_effort: none
 display:
   tool_progress: all
 skills:
